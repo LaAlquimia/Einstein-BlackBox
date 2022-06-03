@@ -1,0 +1,4 @@
+pyxtensor
+numpy
+pandas
+matplotlib
