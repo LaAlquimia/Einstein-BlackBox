@@ -33,52 +33,21 @@ float randfloat(float min, float max)
 class Gen
 {
 public:
-    int operation, col, arity;
+    int operation, arity;
+    float value;
     std::map<std::string, float> symreg_params;
 
     Gen(std::map<std::string, float> symreg)
     {
         symreg_params = symreg;
-        float p_arity = randfloat(0, 1);
-
-        if (p_arity < symreg_params["p_arity_1"])
-        {
-            arity = 1;
-            operation = randint(0, 1);
-        }
-        else if (p_arity < symreg_params["p_arity_1"] + symreg_params["p_arity_2"])
-        {
-            arity = 2;
-            operation = randint(2, 5);
-        }
-        else
-        {
-            arity = 3;
-            operation = randint(6, 11);
-        }
-
+        operation = randint(1, 8);
+        value = randfloat(1, 100);
     }
 
     void mutate_gene()
     {
-        float p_arity = randfloat(0, 1);
-        if (p_arity < symreg_params["p_arity_1"])
-        {
-            arity = 1;
-            operation = randint(0, 1);
-        }
-        else if (p_arity < symreg_params["p_arity_1"] + symreg_params["p_arity_2"])
-        {
-            arity = 2;
-            operation = randint(2, 5);
-        }
-        else
-        {
-            arity = 3;
-            operation = randint(6, 11);
-        }
-
-        col = randint(1, 100);
+        operation = randint(1, 8);
+        value = randfloat(1, 100);
     }
 };
 
@@ -86,26 +55,23 @@ class Program
 {
 public:
     int init_length;
-    int init_col;
-    float fitness_train = 0;
-    float fitness_test = 0;
-    float fitness_proportion = 0;
+    float fitness;
     std::map<std::string, float> symreg_params;
     std::vector<Gen> genes;
 
-    Program(){};
+    // Program(){};
 
     Program(std::map<std::string, float> symreg)
     {
         symreg_params = symreg;
-        init_length = symreg_params["initial_depth"];
+        init_length = symreg["initial_depth"];
 
         for (int i = 0; i < init_length; i++)
         {
+            std::cout<<"Init gen!!"<<std::endl;
             Gen g(symreg_params);
             genes.push_back(g);
         }
-        init_col = randint(1, 100);
     }
 
     void mutate()
@@ -121,7 +87,6 @@ public:
             int program_length = genes.size();
             int program_rand = randint(0, program_length);
             genes[program_rand].mutate_gene();
-            init_col = randint(1, 100);
         }
         else if (p < p_mutation + p_mutation_add_node)
         {
@@ -167,22 +132,46 @@ public:
             {1, "cos"},
             {2, "exp"},
             {3, "+"},
-            {4, "-"},
-            {5, "*"},
-            {6, "/"},
+            {4, "+ x"},
+            {5, "-"},
+            {6, "- x"},
+            {7, "*"},
+            {8, "* x"},
         };
         std::string result = "";
-        result += "v" + std::to_string(init_col);
-        for (auto gen : genes)
+        result += "x";
+        for (auto& gen : genes)
         {
-            switch (gen.arity)
+            switch (gen.operation)
             {
+            case 0:
+                result = operators[gen.operation] + "(" + result + ")";
+                break;
             case 1:
                 result = operators[gen.operation] + "(" + result + ")";
                 break;
             case 2:
-                result = "(" + result + operators[gen.operation] + "v" + std::to_string(gen.col) + ")";
+                result = operators[gen.operation] + "(" + result + ")";
                 break;
+            case 3:
+                result = "(" + result + operators[gen.operation] + std::to_string(gen.value) + ")";
+                break;
+            case 4:
+                result = "(" + result + operators[gen.operation] + ")";
+                break;
+            case 5:
+                result = "(" + result + operators[gen.operation] + std::to_string(gen.value) + ")";
+                break;
+            case 6:
+                result = "(" + result + operators[gen.operation] + ")";
+                break;
+            case 7:
+                result = "(" + result + operators[gen.operation] + std::to_string(gen.value) + ")";
+                break;
+            case 8:
+                result = "(" + result + operators[gen.operation] + ")";
+                break;
+
             default:
                 break;
             }
@@ -193,13 +182,6 @@ public:
 
     xt::xarray<double> compute_program(xt::xarray<double> x_train)
     {
-        /* {0, "sin"},
-            {1, "cos"},
-            {2, "exp"},
-            {3, "+"},
-            {4, "-"},
-            {5, "*"},
-            {6, "/"},*/
         xt::xarray<double> result = x_train;
 
         for (auto gen : genes)
@@ -207,26 +189,31 @@ public:
             switch (gen.operation)
             {
             case 0:
-                result = xt::sin(result);
+                result = xt::sin(result * gen.value);
                 break;
             case 1:
-                result = xt::cos(result);
+                result = xt::cos(result * gen.value);
                 break;
             case 2:
-                result = xt::exp(result);
+                result = xt::exp(result * gen.value);
             case 3:
-                result = result + x_train;
+                result = result + gen.value;
                 break;
             case 4:
-                result = result - x_train;
+                result = result + x_train;
                 break;
             case 5:
-                result = result * x_train;
+                result = result - gen.value;
                 break;
             case 6:
+                result = result - x_train;
+                break;
+            case 7:
+                result = result * gen.value;
+                break;
+            case 8:
                 // safe div
-                result = result / x_train;
-                result = xt::where(result < 0, 0, result);
+                result = result * x_train;
                 break;
             default:
                 break;
@@ -245,11 +232,11 @@ public:
             std::exit(EXIT_FAILURE);
         }
         /*SAVE FILE*/
-        file << std::to_string(init_col) + "\n";
+        // file << "x" + "\n";
 
         for (int i = 0; i < genes.size(); i++)
         {
-            file << std::to_string(genes[i].operation) + "," + std::to_string(genes[i].col) + "," + std::to_string(genes[i].arity);
+            file << std::to_string(genes[i].operation) + "," + std::to_string(genes[i].value);
             if (i < genes.size() - 1)
             {
                 file << "\n";
@@ -270,9 +257,9 @@ public:
         }
         /*LOAD FILE*/
         std::string x;
-        std::getline(file, x, '\n');
-        init_col = std::stoi(x, nullptr, 10);
-        std::cout << x << std::endl;
+        // std::getline(file, x, '\n');
+        // init_col = std::stoi(x, nullptr, 10);
+        // std::cout << x << std::endl;
         while (!file.eof())
         {
             Gen g(symreg_params);
@@ -282,11 +269,7 @@ public:
             std::cout << x << std::endl;
 
             std::getline(file, x, ',');
-            g.col = std::stoi(x, nullptr, 10);
-            std::cout << x << std::endl;
-
-            std::getline(file, x, '\n');
-            g.arity = std::stoi(x, nullptr, 10);
+            g.value = std::stoi(x, nullptr, 10);
             std::cout << x << std::endl;
 
             genes.push_back(g);
@@ -297,10 +280,9 @@ public:
 
     bool operator<(const Program &other)
     {
-        return (fitness_train < other.fitness_train);
+        return (fitness < other.fitness);
     }
 };
-
 
 class LinearSymbolicRegressor
 {
@@ -316,35 +298,44 @@ public:
         int n_programs = symreg["n_programs"];
         for (int i = 0; i < n_programs; i++)
         {
+            std::cout<<"Init program!!"<<std::endl;
             Program p(symreg);
             programs.push_back(p);
         }
     }
 
-    double MeanSquaredError(xt::xarray<double> &y_train, xt::xarray<double> &y_test)
+    double MeanSquaredError(xt::xarray<double> y_train, xt::xarray<double> y_test)
     {
         int n = y_train.shape()[0];
         xt::xarray<double> diff = y_train - y_test;
-        xt::xarray<double> squared = xt::pow(diff,2);
-        double sum = xt::sum(squared)();
-        return sum * (1/n);
+        xt::xarray<double> squared = xt::pow(diff, 2);
+        double sum = xt::sum(squared)[0];
+        double fitness = sum * (double)(1 / n);
+        std::cout<<" Fitness from function: "<< fitness<<std::endl;
+        std::cout<<"VALUE OF SUM: " <<sum<<std::endl;
+        std::cout<<"VALUE OF N: " <<n<<std::endl;
+        return fitness;
     }
 
-    void evaluate_programs(xt::xarray<double> &y_train, xt::xarray<double> &x_train)
+    void evaluate_programs(xt::xarray<double> y_train, xt::xarray<double> x_train)
     {
         std::for_each(
-            std::execution::par,
+            std::execution::seq,
             std::begin(programs),
             std::end(programs),
             [&](Program &program)
             {
                 xt::xarray<double> y_test = program.compute_program(x_train);
-                program.fitness_train = MeanSquaredError(y_train, y_test);
+                program.print_program();
+                program.fitness = MeanSquaredError(y_train, y_test);
+                std::cout<<program.fitness<<std::endl;
+                std::cout<<std::endl;
             });
     }
 
     void fit(xt::xarray<double> &y_train, xt::xarray<double> &x_train)
     {
+        std::cout<<" Starting Fitness Process!!"<<std::endl;
         int n_generations = symreg_params["n_generations"];
         int fitness_counter = 0;
 
@@ -352,30 +343,10 @@ public:
         {
             float fitness_sum = 0;
             evaluate_programs(y_train, x_train);
-            for (auto &program : programs)
-            {
-                fitness_sum += program.fitness_train;
-            }
-            fitness_average.push_back(fitness_sum / symreg_params["n_programs"]);
-
             evolve();
-
-            if (int(fitness_average.size()) > 1)
-            {
-                if (fitness_average[i] <= fitness_average[i - 1])
-                {
-                    fitness_counter++;
-                }
-                else
-                {
-                    fitness_counter = 0;
-                }
-                if (fitness_counter == int(symreg_params["stop_after_times"]) - 1)
-                {
-                    break;
-                }
-            }
         }
+
+        std::cout<<" Finishing Fitness Process!!"<<std::endl;
     }
 
     void selection()
@@ -390,7 +361,7 @@ public:
             {
                 best_programs.push_back(program);
             }
-            else if (program.fitness_train > best_programs[1].fitness_train)
+            else if (program.fitness > best_programs[1].fitness)
             {
                 best_programs.erase(best_programs.end());
                 best_programs.push_back(program);
@@ -423,30 +394,3 @@ public:
         }
     }
 };
-
-/*
-std::map<std::string, float> symreg_params
-{
-    //Individual Parameters
-    {"initial_depth", 3},
-    {"max_depth", 10},
-    {"p_arity_1", 0.1},
-    {"p_arity_2", 0.9},
-    {"p_arity_3", 0.9},
-
-    //Mutation probabilities
-    {"p_xover", 0.5},
-
-    {"p_mutation", 0.5},
-    {"p_mutation_insert_node", 0.2},
-    {"p_mutation_delete_node", 0.2},
-    {"p_mutation_replication", 0.1},
-
-    //Symbolic Regressor Parameters
-    {"n_best", 10},
-    {"n_programs", 25},
-    {"n_generations", 50},
-    {"stop_after_times", 30},
-
-};
-*/
