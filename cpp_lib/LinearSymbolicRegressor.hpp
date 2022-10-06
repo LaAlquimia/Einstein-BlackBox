@@ -55,7 +55,7 @@ class Program
 {
 public:
     int init_length;
-    float fitness;
+    double fitness;
     std::map<std::string, float> symreg_params;
     std::vector<Gen> genes;
 
@@ -68,7 +68,7 @@ public:
 
         for (int i = 0; i < init_length; i++)
         {
-            std::cout<<"Init gen!!"<<std::endl;
+            // std::cout<<"Init gen!!"<<std::endl;
             Gen g(symreg_params);
             genes.push_back(g);
         }
@@ -123,20 +123,22 @@ public:
         genes = child;
     }
 
-    void print_program()
+    std::string print_program()
     {
         std::string prefix = "y = ";
 
         std::map<int, std::string> operators{
             {0, "sin"},
             {1, "cos"},
-            {2, "exp"},
-            {3, "+"},
-            {4, "+ x"},
-            {5, "-"},
-            {6, "- x"},
-            {7, "*"},
-            {8, "* x"},
+            {2, "tan"},
+            {3, "ln"},
+            {4, "exp"},
+            {5, "+"},
+            {6, "+ x"},
+            {7, "-"},
+            {8, "- x"},
+            {9, "*"},
+            {10, "* x"},
         };
         std::string result = "";
         result += "x";
@@ -154,10 +156,10 @@ public:
                 result = operators[gen.operation] + "(" + result + ")";
                 break;
             case 3:
-                result = "(" + result + operators[gen.operation] + std::to_string(gen.value) + ")";
+                result = operators[gen.operation] + "(" + result + ")";
                 break;
             case 4:
-                result = "(" + result + operators[gen.operation] + ")";
+                result = operators[gen.operation] + "(" + result + ")";
                 break;
             case 5:
                 result = "(" + result + operators[gen.operation] + std::to_string(gen.value) + ")";
@@ -171,13 +173,19 @@ public:
             case 8:
                 result = "(" + result + operators[gen.operation] + ")";
                 break;
-
+            case 9:
+                result = "(" + result + operators[gen.operation] + std::to_string(gen.value) + ")";
+                break;
+            case 10:
+                result = "(" + result + operators[gen.operation] + ")";
+                break;
             default:
                 break;
             }
         }
 
         std::cout << prefix + result << std::endl;
+        return result;
     }
 
     xt::xarray<double> compute_program(xt::xarray<double> x_train)
@@ -195,23 +203,29 @@ public:
                 result = xt::cos(result * gen.value);
                 break;
             case 2:
-                result = xt::exp(result * gen.value);
+                result = xt::tan(result * gen.value);
+                break;
             case 3:
-                result = result + gen.value;
+                result = xt::log(result * gen.value);
                 break;
             case 4:
-                result = result + x_train;
-                break;
+                result = xt::exp(result * gen.value);
             case 5:
-                result = result - gen.value;
+                result = result + gen.value;
                 break;
             case 6:
-                result = result - x_train;
+                result = result + x_train;
                 break;
             case 7:
-                result = result * gen.value;
+                result = result - gen.value;
                 break;
             case 8:
+                result = result - x_train;
+                break;
+            case 9:
+                result = result * gen.value;
+                break;
+            case 10:
                 // safe div
                 result = result * x_train;
                 break;
@@ -298,36 +312,43 @@ public:
         int n_programs = symreg["n_programs"];
         for (int i = 0; i < n_programs; i++)
         {
-            std::cout<<"Init program!!"<<std::endl;
+            // std::cout<<"Init program!!"<<std::endl;
             Program p(symreg);
             programs.push_back(p);
         }
     }
 
-    double MeanSquaredError(xt::xarray<double> y_train, xt::xarray<double> y_test)
+    double MSE(xt::xarray<double> y_train, xt::xarray<double> y_test)
     {
         int n = y_train.shape()[0];
         xt::xarray<double> diff = y_train - y_test;
         xt::xarray<double> squared = xt::pow(diff, 2);
         double sum = xt::sum(squared)[0];
-        double fitness = sum * (double)(1 / n);
-        std::cout<<" Fitness from function: "<< fitness<<std::endl;
-        std::cout<<"VALUE OF SUM: " <<sum<<std::endl;
-        std::cout<<"VALUE OF N: " <<n<<std::endl;
+        double fitness = sum * (double)(1.0 / n);
         return fitness;
+    }
+
+    double RMSE(xt::xarray<double> y_train, xt::xarray<double> y_test)
+    {
+        int n = y_train.shape()[0];
+        xt::xarray<double> diff = y_train - y_test;
+        xt::xarray<double> squared = xt::pow(diff, 2);
+        double sum = xt::sum(squared)[0];
+        double fitness = sum * (double)(1.0 / n);
+        return xt::math::sqrt(fitness);
     }
 
     void evaluate_programs(xt::xarray<double> y_train, xt::xarray<double> x_train)
     {
         std::for_each(
-            std::execution::seq,
+            std::execution::par,
             std::begin(programs),
             std::end(programs),
             [&](Program &program)
             {
                 xt::xarray<double> y_test = program.compute_program(x_train);
                 program.print_program();
-                program.fitness = MeanSquaredError(y_train, y_test);
+                program.fitness = RMSE(y_train, y_test);
                 std::cout<<program.fitness<<std::endl;
                 std::cout<<std::endl;
             });

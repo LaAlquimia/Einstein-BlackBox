@@ -34,7 +34,7 @@ PYBIND11_MODULE(LinearSymbolicRegressor, m)
 		.def(py::init([](std::map<std::string, float> symreg)
 					  { return new Program(symreg); }))
 		.def_readwrite("fitness", &Program::fitness)
-		.def_readwrite("genes", &Program::genes)
+		.def_readwrite("genes", &Program::genes) 
 		.def("print_program", &Program::print_program)
 		.def("compute_program", &Program::compute_program);
 		//.def("save_program", &Program::save_program)
